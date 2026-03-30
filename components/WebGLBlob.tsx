@@ -9,10 +9,9 @@ import { useSquishyPhysics, Mode, BASE_RADIUS } from "@/hooks/useSquishyPhysics"
 import { vibrate } from "@/lib/haptics";
 
 const SVG_SIZE = 240;
-const SHADER_POINTS = 64; // Catmull-Rom resampled points sent to the GPU
+const SHADER_POINTS = 64;
 
 // ─── Catmull-Rom resampling ───────────────────────────────────────────────────
-// Converts N physics points (closed curve) → SHADER_POINTS smooth samples.
 
 type Pt = { x: number; y: number };
 
@@ -21,17 +20,16 @@ function catmullRomSample(pts: Pt[], outCount: number): Pt[] {
   const result: Pt[] = [];
   for (let k = 0; k < outCount; k++) {
     const param = (k / outCount) * n;
-    const i = Math.floor(param);
-    const t = param - i;
-    const p0 = pts[(i - 1 + n) % n];
-    const p1 = pts[i % n];
-    const p2 = pts[(i + 1) % n];
-    const p3 = pts[(i + 2) % n];
-    const t2 = t * t;
-    const t3 = t2 * t;
+    const i     = Math.floor(param);
+    const t     = param - i;
+    const p0    = pts[(i - 1 + n) % n];
+    const p1    = pts[i % n];
+    const p2    = pts[(i + 1) % n];
+    const p3    = pts[(i + 2) % n];
+    const t2 = t * t, t3 = t2 * t;
     result.push({
-      x: 0.5 * (2 * p1.x + (-p0.x + p2.x) * t + (2 * p0.x - 5 * p1.x + 4 * p2.x - p3.x) * t2 + (-p0.x + 3 * p1.x - 3 * p2.x + p3.x) * t3),
-      y: 0.5 * (2 * p1.y + (-p0.y + p2.y) * t + (2 * p0.y - 5 * p1.y + 4 * p2.y - p3.y) * t2 + (-p0.y + 3 * p1.y - 3 * p2.y + p3.y) * t3),
+      x: 0.5 * (2*p1.x + (-p0.x+p2.x)*t + (2*p0.x-5*p1.x+4*p2.x-p3.x)*t2 + (-p0.x+3*p1.x-3*p2.x+p3.x)*t3),
+      y: 0.5 * (2*p1.y + (-p0.y+p2.y)*t + (2*p0.y-5*p1.y+4*p2.y-p3.y)*t2 + (-p0.y+3*p1.y-3*p2.y+p3.y)*t3),
     });
   }
   return result;
@@ -41,7 +39,6 @@ function catmullRomSample(pts: Pt[], outCount: number): Pt[] {
 
 const vertexShader = /* glsl */ `
 out vec2 vPos;
-
 void main() {
   vPos = position.xy;
   gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
@@ -60,24 +57,23 @@ uniform vec2  uLightDir;
 uniform float uSSS;
 uniform float uShininess;
 uniform float uFresnelStr;
+// Press dent
+uniform vec2  uPressPos;
+uniform float uPressStrength;  // 0..1
 
 in  vec2 vPos;
 out vec4 fragColor;
 
-// ── Polygon SDF (signed — negative inside) ───────────────────────────────────
+// ── Polygon SDF ───────────────────────────────────────────────────────────────
 float polygonSDF(vec2 p) {
   float d = 1e6;
   bool  inside = false;
-
   for (int i = 0; i < ${SHADER_POINTS}; i++) {
     vec2 a = uPoints[i];
     vec2 b = uPoints[(i + 1) % ${SHADER_POINTS}];
-
-    vec2  pa = p - a;
-    vec2  ba = b - a;
-    float h  = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
+    vec2 pa = p - a, ba = b - a;
+    float h = clamp(dot(pa, ba) / dot(ba, ba), 0.0, 1.0);
     d = min(d, length(pa - ba * h));
-
     bool c1 = (a.y <= p.y) && (b.y >  p.y);
     bool c2 = (b.y <= p.y) && (a.y >  p.y);
     if (c1 || c2) {
@@ -88,7 +84,6 @@ float polygonSDF(vec2 p) {
   return inside ? -d : d;
 }
 
-// ── Central-difference gradient (= outward 2-D normal) ───────────────────────
 vec2 sdfNormal2D(vec2 p) {
   const float e = 1.2;
   return normalize(vec2(
@@ -100,19 +95,45 @@ vec2 sdfNormal2D(vec2 p) {
 void main() {
   float sdf = polygonSDF(vPos);
   if (sdf > 2.0) discard;
-
   float alpha = smoothstep(2.0, -1.0, sdf);
 
-  // ── Fake 3-D hemisphere normal ──────────────────────────────────────────────
+  // ── Bun normal (납작한 찐빵) ─────────────────────────────────────────────
+  // Profile: h(r) = A * cos(r * π/2)  →  flat at center, gently slopes to edge
   vec2  normPos = vPos / float(${BASE_RADIUS});
-  float lenSq   = dot(normPos, normPos);
-  float nz      = sqrt(max(0.0, 1.0 - lenSq));
-  vec2  grad2D  = sdfNormal2D(vPos);
-  float edgeMix = smoothstep(0.0, 0.7, sqrt(lenSq));
-  vec2  n2      = mix(normPos, grad2D, edgeMix * 0.5 + 0.5);
-  vec3  normal  = normalize(vec3(n2 * 0.7, nz));
+  float r       = clamp(length(normPos), 0.0, 1.0);
+  float bunA    = 0.28;                         // controls how flat (lower = flatter)
+  float cosR    = cos(r * 1.5708);              // π/2
+  float nz      = bunA * cosR;                  // height
 
-  // ── Lighting ────────────────────────────────────────────────────────────────
+  // Gradient of h  →  in-plane normal components
+  float dhdr    = -bunA * sin(r * 1.5708) * 1.5708;
+  vec2  nhXY    = (r > 0.001) ? (normPos / r) * dhdr * 0.35 : vec2(0.0);
+
+  // Near the silhouette edge blend toward SDF gradient for crisp outline
+  vec2  sdfGrad = sdfNormal2D(vPos);
+  float edgeMix = smoothstep(0.55, 0.92, r);
+  vec2  n2      = mix(nhXY, sdfGrad * 0.55, edgeMix);
+  vec3  normal  = normalize(vec3(n2, max(nz, 0.05)));
+
+  // ── Press dent ────────────────────────────────────────────────────────────
+  // A Gaussian depression at the press point — creates darker center + bright rim
+  if (uPressStrength > 0.01) {
+    vec2  dp       = vPos - uPressPos;
+    float dist     = length(dp);
+    float sigma    = 38.0;
+    float gaussian = exp(-dist * dist / (2.0 * sigma * sigma));
+    float dent     = uPressStrength * gaussian;
+
+    // Normal perturbation: rotate toward -z at center, flare outward at rim
+    // Grad of gaussian points outward from press center
+    vec2  gradG   = dp / (sigma * sigma) * gaussian * uPressStrength;
+    // At center: gradG ≈ 0, but normal tilts inward via -z
+    // At rim: gradG points outward, lifting the rim
+    vec3  dentPerturb = vec3(gradG * 55.0, -dent * 0.55);
+    normal = normalize(normal + dentPerturb);
+  }
+
+  // ── Lighting ──────────────────────────────────────────────────────────────
   vec3  lightDir = normalize(vec3(uLightDir, 1.4));
   vec3  viewDir  = vec3(0.0, 0.0, 1.0);
   vec3  halfDir  = normalize(lightDir + viewDir);
@@ -121,33 +142,26 @@ void main() {
   float NdotH = max(dot(normal, halfDir),  0.0);
   float NdotV = max(dot(normal, viewDir),  0.0);
 
-  // Diffuse
   float diffuse = NdotL * 0.72 + 0.28;
-
-  // Specular (Blinn-Phong)
-  float spec = pow(NdotH, uShininess) * NdotL;
-
-  // Fresnel (Schlick)
+  float spec    = pow(NdotH, uShininess) * NdotL;
   float fresnel = pow(1.0 - NdotV, 3.0) * uFresnelStr;
 
-  // ── Subsurface scattering (fake) ────────────────────────────────────────────
+  // ── SSS ───────────────────────────────────────────────────────────────────
   float thickness = clamp(-sdf / float(${BASE_RADIUS}), 0.0, 1.0);
   float scatter   = max(dot(-lightDir, viewDir), 0.0);
   float sssAmt    = uSSS * thickness * (0.55 + 0.45 * scatter);
   vec3  sssColor  = mix(uColor, uHighlight, 0.85) * 1.25;
 
-  // ── Combine ─────────────────────────────────────────────────────────────────
+  // ── Combine ───────────────────────────────────────────────────────────────
   vec3 col = uColor     * diffuse
            + uHighlight * spec    * 0.9
            + uHighlight * fresnel
            + sssColor   * sssAmt  * 0.42
            + uShadow    * max(0.0, -NdotL) * 0.15;
 
-  // Warm rim on the shadow side
   float rim = pow(1.0 - NdotV, 2.2) * (1.0 - NdotL);
   col += uShadow * rim * 0.10;
 
-  // Subtle breathing pulse on the highlight
   float pulse = 0.5 + 0.5 * sin(uTime * 1.1);
   col += uHighlight * pulse * 0.025 * (1.0 - thickness);
 
@@ -155,7 +169,7 @@ void main() {
 }
 `;
 
-// ─── Material → shader params ─────────────────────────────────────────────────
+// ─── Material uniforms ────────────────────────────────────────────────────────
 
 function materialUniforms(mat: Material): { uSSS: number; uShininess: number; uFresnelStr: number } {
   const table: Record<string, { uSSS: number; uShininess: number; uFresnelStr: number }> = {
@@ -167,27 +181,34 @@ function materialUniforms(mat: Material): { uSSS: number; uShininess: number; uF
   return table[mat.id] ?? { uSSS: 0.45, uShininess: 60.0, uFresnelStr: 0.6 };
 }
 
-// ─── Inner mesh ───────────────────────────────────────────────────────────────
+// ─── Press state shared ref ───────────────────────────────────────────────────
+
+interface PressState { x: number; y: number; strength: number; active: boolean }
+
+// ─── BlobMesh ─────────────────────────────────────────────────────────────────
 
 interface BlobMeshProps {
   physics: ReturnType<typeof useSquishyPhysics>;
   color: ColorPreset;
   material: Material;
+  pressRef: React.MutableRefObject<PressState>;
 }
 
-function BlobMesh({ physics, color, material }: BlobMeshProps) {
+function BlobMesh({ physics, color, material, pressRef }: BlobMeshProps) {
   const uniforms = useMemo(() => {
     const { uSSS, uShininess, uFresnelStr } = materialUniforms(material);
     return {
-      uPoints:     { value: Array.from({ length: SHADER_POINTS }, () => new THREE.Vector2()) },
-      uColor:      { value: new THREE.Color(color.fill) },
-      uHighlight:  { value: new THREE.Color(color.highlight) },
-      uShadow:     { value: new THREE.Color(color.shadow) },
-      uTime:       { value: 0 },
-      uLightDir:   { value: new THREE.Vector2(-0.4, 0.6) },
-      uSSS:        { value: uSSS },
-      uShininess:  { value: uShininess },
-      uFresnelStr: { value: uFresnelStr },
+      uPoints:      { value: Array.from({ length: SHADER_POINTS }, () => new THREE.Vector2()) },
+      uColor:       { value: new THREE.Color(color.fill) },
+      uHighlight:   { value: new THREE.Color(color.highlight) },
+      uShadow:      { value: new THREE.Color(color.shadow) },
+      uTime:        { value: 0 },
+      uLightDir:    { value: new THREE.Vector2(-0.4, 0.6) },
+      uSSS:         { value: uSSS },
+      uShininess:   { value: uShininess },
+      uFresnelStr:  { value: uFresnelStr },
+      uPressPos:    { value: new THREE.Vector2(0, 0) },
+      uPressStrength: { value: 0 },
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -205,13 +226,23 @@ function BlobMesh({ physics, color, material }: BlobMeshProps) {
     uniforms.uFresnelStr.value = p.uFresnelStr;
   }, [material, uniforms]);
 
-  useFrame(({ clock }) => {
+  useFrame(({ clock }, delta) => {
     physics.step();
     const raw    = physics.getPoints();
     const smooth = catmullRomSample(raw, SHADER_POINTS);
     for (let i = 0; i < SHADER_POINTS; i++) {
-      uniforms.uPoints.value[i].set(smooth[i].x, smooth[i].y);
+      // Flip Y: physics uses screen-Y (down+), WebGL uses math-Y (up+)
+      uniforms.uPoints.value[i].set(smooth[i].x, -smooth[i].y);
     }
+
+    // Smooth press strength: ramp up while active, decay after release
+    const ps = pressRef.current;
+    const target = ps.active ? 1.0 : 0.0;
+    const speed  = ps.active ? 12.0 : 5.0;
+    ps.strength  = ps.strength + (target - ps.strength) * Math.min(1, delta * speed);
+
+    uniforms.uPressPos.value.set(ps.x, -ps.y); // flip Y for shader
+    uniforms.uPressStrength.value = ps.strength;
     uniforms.uTime.value = clock.getElapsedTime();
   });
 
@@ -232,13 +263,7 @@ function BlobMesh({ physics, color, material }: BlobMeshProps) {
 
 // ─── Particle burst ───────────────────────────────────────────────────────────
 
-interface Particle {
-  id: number;
-  angle: number;
-  size: number;
-  distance: number;
-  color: string;
-}
+interface Particle { id: number; angle: number; size: number; distance: number; color: string }
 
 // ─── Public component ─────────────────────────────────────────────────────────
 
@@ -253,11 +278,12 @@ interface Props {
 }
 
 export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, isPopping }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const [particles, setParticles]   = useState<Particle[]>([]);
-  const [popKey, setPopKey]         = useState(0);
-  const [showHint, setShowHint]     = useState(true);
-  const stretchRecordedRef          = useRef(false);
+  const containerRef   = useRef<HTMLDivElement>(null);
+  const pressRef       = useRef<PressState>({ x: 0, y: 0, strength: 0, active: false });
+  const [particles, setParticles] = useState<Particle[]>([]);
+  const [popKey, setPopKey]       = useState(0);
+  const [showHint, setShowHint]   = useState(true);
+  const stretchRecordedRef        = useRef(false);
 
   const physics = useSquishyPhysics(material, mode);
 
@@ -267,7 +293,7 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
     const colors = [color.fill, color.highlight, color.shadow];
     setParticles(
       Array.from({ length: count }, (_, i) => ({
-        id:       i,
+        id: i,
         angle:    (i / count) * 360 + Math.random() * (360 / count),
         size:     6 + Math.random() * 8,
         distance: 70 + Math.random() * 50,
@@ -282,8 +308,8 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
   const getLocalXY = useCallback((clientX: number, clientY: number) => {
     const rect = containerRef.current?.getBoundingClientRect() ?? new DOMRect();
     return {
-      x:  clientX - (rect.left + rect.width  / 2),
-      y: -(clientY - (rect.top  + rect.height / 2)), // flip Y for WebGL
+      x: clientX - (rect.left + rect.width  / 2),
+      y: clientY - (rect.top  + rect.height / 2),
     };
   }, []);
 
@@ -295,12 +321,14 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
         stretchRecordedRef.current = false;
         physics.resetPopCharge();
         const { x, y } = getLocalXY(cx, cy);
+        pressRef.current = { x, y, strength: 0, active: true };
         physics.applyPress(x, y);
         vibrate(material.hapticPress);
         onPress();
         return;
       }
       if (last) {
+        pressRef.current.active = false;
         physics.applyRelease(vx * 60, vy * 60);
         if (physics.consumePopCharge()) {
           vibrate(material.hapticPop);
@@ -330,7 +358,7 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
     { target: containerRef, eventOptions: { passive: false } }
   );
 
-  const shadowColor = color.shadow + "59"; // 35% opacity hex
+  const shadowColor = color.shadow + "59";
 
   return (
     <div
@@ -338,12 +366,10 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
       className="relative flex items-center justify-center select-none touch-none"
       style={{ width: SVG_SIZE, height: SVG_SIZE, cursor: mode === "pop" ? "crosshair" : "grab" }}
     >
-      {/* Drop shadow layer */}
       <div
         style={{
-          position: "absolute",
-          inset: 0,
-          filter: `drop-shadow(0px 8px 16px ${shadowColor})`,
+          position: "absolute", inset: 0,
+          filter: `drop-shadow(0px 8px 18px ${shadowColor})`,
           pointerEvents: "none",
         }}
       >
@@ -353,25 +379,21 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
           style={{ width: SVG_SIZE, height: SVG_SIZE }}
           gl={{ antialias: true, alpha: true }}
         >
-          <BlobMesh physics={physics} color={color} material={material} />
+          <BlobMesh physics={physics} color={color} material={material} pressRef={pressRef} />
         </Canvas>
       </div>
 
-      {/* Interaction canvas (invisible, just to capture pointer events) */}
       <div style={{ width: SVG_SIZE, height: SVG_SIZE }} />
 
-      {/* Pop particles */}
       {particles.map((p) => (
         <div
           key={`${popKey}-${p.id}`}
           style={{
-            position: "absolute",
-            top: "50%", left: "50%",
+            position: "absolute", top: "50%", left: "50%",
             width: p.size, height: p.size,
-            borderRadius: "50%",
-            background: p.color,
+            borderRadius: "50%", background: p.color,
             transform: "translate(-50%, -50%)",
-            animation: `popFly 0.65s cubic-bezier(0.2, 0, 0.8, 1) ${p.id * 15}ms forwards`,
+            animation: `popFly 0.65s cubic-bezier(0.2,0,0.8,1) ${p.id * 15}ms forwards`,
             ["--pop-x" as string]: `${Math.cos((p.angle * Math.PI) / 180) * p.distance}px`,
             ["--pop-y" as string]: `${Math.sin((p.angle * Math.PI) / 180) * p.distance}px`,
           }}
@@ -379,19 +401,17 @@ export function WebGLBlob({ material, color, mode, onPop, onPress, onStretch, is
       ))}
 
       {showHint && (
-        <span
-          className="absolute text-xs font-medium pointer-events-none"
-          style={{ color: color.shadow, opacity: 0.7 }}
-        >
+        <span className="absolute text-xs font-medium pointer-events-none"
+          style={{ color: color.shadow, opacity: 0.7 }}>
           눌러봐!
         </span>
       )}
 
       <style>{`
         @keyframes popFly {
-          0%   { transform: translate(-50%,-50%) translate(0px,0px) scale(1); opacity: 1; }
-          60%  { opacity: 0.8; }
-          100% { transform: translate(-50%,-50%) translate(var(--pop-x),var(--pop-y)) scale(0.1); opacity: 0; }
+          0%   { transform:translate(-50%,-50%) translate(0px,0px) scale(1); opacity:1; }
+          60%  { opacity:0.8; }
+          100% { transform:translate(-50%,-50%) translate(var(--pop-x),var(--pop-y)) scale(0.1); opacity:0; }
         }
       `}</style>
     </div>
