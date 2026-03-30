@@ -5,8 +5,25 @@ import { vibrate } from "@/lib/haptics";
 
 export type Mode = "free" | "pop";
 
-const NUM_POINTS = 16;
+const NUM_POINTS = 24;
 export const BASE_RADIUS = 80;
+const REST_AREA = Math.PI * BASE_RADIUS * BASE_RADIUS; // ~20106
+
+// Polygon area via shoelace formula
+function polygonArea(pts: { r: number; angle: number }[]): number {
+  let area = 0;
+  const n = pts.length;
+  for (let i = 0; i < n; i++) {
+    const a = pts[i];
+    const b = pts[(i + 1) % n];
+    const ax = Math.cos(a.angle) * a.r;
+    const ay = Math.sin(a.angle) * a.r;
+    const bx = Math.cos(b.angle) * b.r;
+    const by = Math.sin(b.angle) * b.r;
+    area += ax * by - bx * ay;
+  }
+  return Math.abs(area) / 2;
+}
 
 export interface BlobPoint {
   angle: number;
@@ -15,7 +32,6 @@ export interface BlobPoint {
   baseR: number;
 }
 
-// How much press force to apply — tuned so deformation is always visible
 const PRESS_IMPULSE = 320;
 
 export function useSquishyPhysics(
@@ -34,10 +50,9 @@ export function useSquishyPhysics(
   const stretchRecordedRef = useRef(false);
 
   useEffect(() => {
-    const baseVariance = 4;
     pointsRef.current = Array.from({ length: NUM_POINTS }, (_, i) => {
       const angle = (i / NUM_POINTS) * Math.PI * 2;
-      const r = BASE_RADIUS + (Math.random() - 0.5) * baseVariance;
+      const r = BASE_RADIUS + (Math.random() - 0.5) * 4;
       return { angle, r, vr: 0, baseR: r };
     });
   }, []);
@@ -72,24 +87,42 @@ export function useSquishyPhysics(
     const pts = pointsRef.current;
     const { stiffness, damping } = material;
     const dt = 1 / 60;
+    const n = pts.length;
 
-    for (const p of pts) {
+    // ── 1. Area conservation pressure ──────────────────────────────
+    // If blob has been squished smaller than rest area, push outward
+    const area = polygonArea(pts);
+    const areaRatio = REST_AREA / Math.max(area, REST_AREA * 0.1);
+    // Pressure force scales up the more it's compressed
+    const pressureStrength = 60 * material.squishFactor * Math.max(0, areaRatio - 1);
+
+    // ── 2. Neighbor coupling ────────────────────────────────────────
+    // Each point pulls its neighbors toward its own velocity (wave propagation)
+    const neighborCoupling = 0.12;
+    const vrCopy = pts.map((p) => p.vr);
+
+    for (let i = 0; i < n; i++) {
+      const p = pts[i];
+      const prev = vrCopy[(i - 1 + n) % n];
+      const next = vrCopy[(i + 1) % n];
+      const neighborInfluence = (prev + next - 2 * vrCopy[i]) * neighborCoupling;
+
+      // Spring + damping + pressure + neighbor
       const springForce = -stiffness * (p.r - p.baseR);
       const dampForce = -damping * p.vr;
-      p.vr += (springForce + dampForce) * dt;
+      const pressure = pressureStrength;
+
+      p.vr += (springForce + dampForce + pressure + neighborInfluence) * dt;
       p.r += p.vr * dt;
-      p.r = Math.max(p.r, BASE_RADIUS * 0.15); // allow deeper squish
+      p.r = Math.max(p.r, BASE_RADIUS * 0.15);
     }
   }, [material]);
 
-  // Push points inward toward press location
   const applyPressAt = useCallback(
     (localX: number, localY: number, force: number) => {
       const pts = pointsRef.current;
       const pressAngle = Math.atan2(localY, localX);
-      // Wider spread (σ=1.1) so the whole side squishes, not just one point
       const sigma = 1.1;
-
       for (const p of pts) {
         let diff = p.angle - pressAngle;
         while (diff > Math.PI) diff -= Math.PI * 2;
@@ -101,22 +134,17 @@ export function useSquishyPhysics(
     [material],
   );
 
-  // Directional stretch: blob elongates in drag direction
   const applyDragStretch = useCallback(
-    (dragX: number, dragY: number) => {
+    (dx: number, dy: number) => {
       const pts = pointsRef.current;
-      const mag = Math.sqrt(dragX * dragX + dragY * dragY);
+      const mag = Math.sqrt(dx * dx + dy * dy);
       if (mag < 1) return;
-      const nx = dragX / mag;
-      const ny = dragY / mag;
-      const stretchImpulse = Math.min(mag * 0.6, 80) * material.squishFactor;
-
+      const nx = dx / mag;
+      const ny = dy / mag;
+      const impulse = Math.min(mag * 0.6, 80) * material.squishFactor;
       for (const p of pts) {
-        const px = Math.cos(p.angle);
-        const py = Math.sin(p.angle);
-        // Dot product: points in drag direction stretch OUT, opposite side squishes IN
-        const dot = px * nx + py * ny;
-        p.vr += dot * stretchImpulse * 0.9;
+        const dot = Math.cos(p.angle) * nx + Math.sin(p.angle) * ny;
+        p.vr += dot * impulse * 0.9;
       }
     },
     [material],
@@ -143,7 +171,6 @@ export function useSquishyPhysics(
   const onPointerMove = useCallback(
     (e: React.PointerEvent<SVGElement>, svgRect: DOMRect) => {
       if (!isDraggingRef.current) return;
-
       const dx = e.clientX - lastPointerRef.current.x;
       const dy = e.clientY - lastPointerRef.current.y;
       lastPointerRef.current = { x: e.clientX, y: e.clientY };
@@ -163,8 +190,7 @@ export function useSquishyPhysics(
         vibrate([10, 10, 10]);
         onStretch();
       }
-
-      void svgRect; // used by caller to compute local coords if needed
+      void svgRect;
     },
     [applyDragStretch, onStretch],
   );
@@ -174,16 +200,14 @@ export function useSquishyPhysics(
     isDraggingRef.current = false;
 
     const pts = pointsRef.current;
-    const wobble = material.wobbliness;
     for (const p of pts) {
-      p.vr += (Math.random() - 0.5) * wobble;
+      p.vr += (Math.random() - 0.5) * material.wobbliness;
     }
 
     if (mode === "pop" && popChargeRef.current > 0.5) {
       vibrate(material.hapticPop);
       onPop();
     }
-
     popChargeRef.current = 0;
   }, [material, mode, onPop]);
 
