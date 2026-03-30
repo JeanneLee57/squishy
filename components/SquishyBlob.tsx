@@ -1,8 +1,10 @@
 "use client";
 import { useRef, useEffect, useState, useCallback } from "react";
+import { useDrag, usePinch } from "@use-gesture/react";
 import { Material } from "@/lib/materials";
 import { ColorPreset } from "@/lib/colors";
 import { useSquishyPhysics, Mode, BASE_RADIUS } from "@/hooks/useSquishyPhysics";
+import { vibrate } from "@/lib/haptics";
 
 interface Props {
   material: Material;
@@ -26,14 +28,16 @@ interface Particle {
 }
 
 export function SquishyBlob({ material, color, mode, onPop, onPress, onStretch, isPopping }: Props) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const svgRef = useRef<SVGSVGElement>(null);
   const [path, setPath] = useState("");
   const [particles, setParticles] = useState<Particle[]>([]);
   const [popKey, setPopKey] = useState(0);
   const [showHint, setShowHint] = useState(true);
-  const physics = useSquishyPhysics(material, mode, onPop, onPress, onStretch);
+  const stretchRecordedRef = useRef(false);
+
+  const physics = useSquishyPhysics(material, mode);
   const gradId = `blob-grad-${color.id}`;
-  const filterId = `blob-shadow`;
 
   // Animation loop
   useEffect(() => {
@@ -51,49 +55,104 @@ export function SquishyBlob({ material, color, mode, onPop, onPress, onStretch, 
     };
   }, [physics]);
 
-  // Pop particles — rendered as absolute divs so CSS transform works properly
+  // Pop particles
   useEffect(() => {
     if (!isPopping) return;
     const count = 16;
     const colors = [color.fill, color.highlight, color.shadow];
-    const newParticles: Particle[] = Array.from({ length: count }, (_, i) => ({
-      id: i,
-      angle: (i / count) * 360 + Math.random() * (360 / count),
-      size: 6 + Math.random() * 8,
-      distance: 70 + Math.random() * 50,
-      color: colors[i % colors.length],
-    }));
-    setParticles(newParticles);
+    setParticles(
+      Array.from({ length: count }, (_, i) => ({
+        id: i,
+        angle: (i / count) * 360 + Math.random() * (360 / count),
+        size: 6 + Math.random() * 8,
+        distance: 70 + Math.random() * 50,
+        color: colors[i % colors.length],
+      }))
+    );
     setPopKey((k) => k + 1);
     const t = setTimeout(() => setParticles([]), 700);
     return () => clearTimeout(t);
   }, [isPopping, color]);
 
-  const getSvgRect = useCallback(() => {
-    return svgRef.current?.getBoundingClientRect() ?? new DOMRect();
+  const getLocalXY = useCallback((clientX: number, clientY: number) => {
+    const rect = svgRef.current?.getBoundingClientRect() ?? new DOMRect();
+    return {
+      x: clientX - (rect.left + rect.width / 2),
+      y: clientY - (rect.top + rect.height / 2),
+    };
   }, []);
 
-  const handlePointerDown = useCallback(
-    (e: React.PointerEvent<SVGElement>) => {
-      setShowHint(false);
-      physics.onPointerDown(e, getSvgRect());
+  // Drag gesture — replaces raw pointer events
+  useDrag(
+    ({ first, last, movement: [mx, my], delta: [dx, dy], velocity: [vx, vy], xy: [cx, cy], event }) => {
+      event.preventDefault();
+
+      if (first) {
+        setShowHint(false);
+        stretchRecordedRef.current = false;
+        physics.resetPopCharge();
+        const { x, y } = getLocalXY(cx, cy);
+        physics.applyPress(x, y);
+        vibrate(material.hapticPress);
+        onPress();
+        return;
+      }
+
+      if (last) {
+        // Pass actual release velocity (px/ms → scale up for impulse)
+        physics.applyRelease(vx * 60, vy * 60);
+        if (physics.consumePopCharge()) {
+          vibrate(material.hapticPop);
+          onPop();
+        }
+        return;
+      }
+
+      // Mid-drag: stretch in drag direction
+      if (Math.abs(dx) > 0.5 || Math.abs(dy) > 0.5) {
+        physics.applyDrag(dx, dy);
+      }
+
+      const dist = Math.sqrt(mx * mx + my * my);
+      physics.addPopCharge(dist);
+
+      if (!stretchRecordedRef.current && dist > 20) {
+        stretchRecordedRef.current = true;
+        vibrate([10, 10, 10]);
+        onStretch();
+      }
     },
-    [physics, getSvgRect],
+    {
+      target: containerRef,
+      eventOptions: { passive: false },
+    }
+  );
+
+  // Pinch gesture — two-finger squeeze/expand
+  usePinch(
+    ({ delta: [dScale], first }) => {
+      if (first) return;
+      // dScale > 0: spread (expand), dScale < 0: pinch (compress)
+      physics.applyPinch(dScale - 1);
+    },
+    {
+      target: containerRef,
+      eventOptions: { passive: false },
+    }
   );
 
   return (
-    <div className="relative flex items-center justify-center select-none" style={{ width: SVG_SIZE, height: SVG_SIZE }}>
+    <div
+      ref={containerRef}
+      className="relative flex items-center justify-center select-none touch-none"
+      style={{ width: SVG_SIZE, height: SVG_SIZE, cursor: mode === "pop" ? "crosshair" : "grab" }}
+    >
       <svg
         ref={svgRef}
         width={SVG_SIZE}
         height={SVG_SIZE}
-        // Coordinate system: center is (0,0)
         viewBox={`${-CENTER} ${-CENTER} ${SVG_SIZE} ${SVG_SIZE}`}
-        style={{ cursor: mode === "pop" ? "crosshair" : "grab", touchAction: "none", overflow: "visible" }}
-        onPointerDown={handlePointerDown}
-        onPointerMove={(e) => physics.onPointerMove(e, getSvgRect())}
-        onPointerUp={physics.onPointerUp}
-        onPointerLeave={physics.onPointerUp}
+        style={{ overflow: "visible", pointerEvents: "none" }}
       >
         <defs>
           <radialGradient id={gradId} cx="35%" cy="30%" r="70%">
@@ -101,21 +160,15 @@ export function SquishyBlob({ material, color, mode, onPop, onPress, onStretch, 
             <stop offset="55%" stopColor={color.fill} />
             <stop offset="100%" stopColor={color.shadow} />
           </radialGradient>
-          <filter id={filterId} x="-30%" y="-30%" width="160%" height="160%">
+          <filter id="blob-shadow" x="-30%" y="-30%" width="160%" height="160%">
             <feDropShadow dx="0" dy="6" stdDeviation="10" floodColor={color.shadow} floodOpacity="0.35" />
           </filter>
         </defs>
 
-        {/* Main blob */}
         {!isPopping && path && (
-          <path
-            d={path}
-            fill={`url(#${gradId})`}
-            filter={`url(#${filterId})`}
-          />
+          <path d={path} fill={`url(#${gradId})`} filter="url(#blob-shadow)" />
         )}
 
-        {/* Specular highlight — moves slightly with blob */}
         {!isPopping && path && (
           <ellipse
             cx={-BASE_RADIUS * 0.25}
@@ -129,7 +182,7 @@ export function SquishyBlob({ material, color, mode, onPop, onPress, onStretch, 
         )}
       </svg>
 
-      {/* Pop particles — absolutely positioned relative to blob container */}
+      {/* Pop particles */}
       {particles.map((p) => (
         <div
           key={`${popKey}-${p.id}`}
@@ -143,14 +196,12 @@ export function SquishyBlob({ material, color, mode, onPop, onPress, onStretch, 
             background: p.color,
             transform: "translate(-50%, -50%)",
             animation: `popFly 0.65s cubic-bezier(0.2, 0, 0.8, 1) ${p.id * 15}ms forwards`,
-            // CSS custom properties to pass angle/distance into keyframes
             ["--pop-x" as string]: `${Math.cos((p.angle * Math.PI) / 180) * p.distance}px`,
             ["--pop-y" as string]: `${Math.sin((p.angle * Math.PI) / 180) * p.distance}px`,
           }}
         />
       ))}
 
-      {/* Hint */}
       {showHint && (
         <span
           className="absolute text-xs font-medium pointer-events-none"
