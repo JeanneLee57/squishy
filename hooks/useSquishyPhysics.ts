@@ -173,6 +173,13 @@ export function useSquishyPhysics(material: Material, mode: Mode) {
     popChargeRef.current = 0;
   }, []);
 
+  const getPoints = useCallback((): { x: number; y: number }[] => {
+    return pointsRef.current.map((p) => ({
+      x: Math.cos(p.angle) * p.r,
+      y: Math.sin(p.angle) * p.r,
+    }));
+  }, []);
+
   return {
     computePath,
     step,
@@ -184,5 +191,6 @@ export function useSquishyPhysics(material: Material, mode: Mode) {
     consumePopCharge,
     resetPopCharge,
     animFrameRef,
+    getPoints,
   };
 }

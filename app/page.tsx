@@ -1,6 +1,6 @@
 "use client";
 import { useState, useEffect, useCallback, useRef } from "react";
-import { SquishyBlob } from "@/components/SquishyBlob";
+import { WebGLBlob } from "@/components/WebGLBlob";
 import { CustomizationBar } from "@/components/CustomizationBar";
 import { ModeToggle } from "@/components/ModeToggle";
 import { SessionEndCard } from "@/components/SessionEndCard";
@@ -134,7 +134,7 @@ export default function Home() {
 
         {/* Squishy blob */}
         <div className="flex items-center justify-center py-4">
-          <SquishyBlob
+          <WebGLBlob
             material={MATERIALS[material]}
             color={COLORS[color]}
             mode={mode}
