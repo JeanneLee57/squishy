@@ -1,4 +1,11 @@
 "use client";
+
+// ============================================================
+// 기존 스퀴시 앱 코드 — 연습 중 임시 주석처리
+// 다시 활성화하려면 아래 블록 주석 해제 후 BunPractice 제거
+// ============================================================
+
+/*
 import { useState, useEffect, useCallback, useRef } from "react";
 import { WebGLBlob } from "@/components/WebGLBlob";
 import { CustomizationBar } from "@/components/CustomizationBar";
@@ -112,7 +119,6 @@ export default function Home() {
       style={{ touchAction: "none" }}
     >
       <div className="w-full max-w-xs px-4 py-6 flex flex-col gap-4 animate-fade-in">
-        {/* Top bar */}
         <div className="flex justify-between items-center">
           <span className="text-base font-semibold text-gray-900">squishy</span>
           <div className="flex gap-2 items-center">
@@ -127,12 +133,10 @@ export default function Home() {
           </div>
         </div>
 
-        {/* Timer */}
         <div className="text-center">
           <span className="text-xs text-gray-400">{formatTimer()}</span>
         </div>
 
-        {/* Squishy blob */}
         <div className="flex items-center justify-center py-4">
           <WebGLBlob
             material={MATERIALS[material]}
@@ -145,7 +149,6 @@ export default function Home() {
           />
         </div>
 
-        {/* Customization */}
         <CustomizationBar
           selectedMaterial={material}
           selectedColor={color}
@@ -153,10 +156,8 @@ export default function Home() {
           onColorChange={setColor}
         />
 
-        {/* Mode toggle */}
         <ModeToggle mode={mode} onChange={setMode} />
 
-        {/* Bottom actions */}
         <div className="flex justify-center gap-0 pt-2 border-t border-gray-50">
           <button
             onClick={handleShare}
@@ -176,7 +177,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Session end card */}
       {showEndCard && (
         <SessionEndCard
           stats={stats}
@@ -193,4 +193,15 @@ export default function Home() {
       )}
     </main>
   );
+}
+*/
+
+// ============================================================
+// 현재 활성: 찐빵 연습 컴포넌트
+// ============================================================
+
+import { BunPractice } from "@/components/BunPractice";
+
+export default function Home() {
+  return <BunPractice />;
 }
