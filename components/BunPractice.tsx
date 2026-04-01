@@ -44,9 +44,9 @@ export const DEFAULT_PARAMS = {
   dentDepth:   0.40,   // 눌림 변위 깊이 배율
   pressRadius: 0.35,   // 눌림 가우시안 반지름
   // 조명 (Fragment)
-  ambient:     0.40,   // 환경광
-  diffuse:     0.44,   // 확산광 강도
-  wrap:        0.20,   // 랩 라이팅 (그늘쪽 보정)
+  ambient:     0.56,   // 환경광
+  diffuse:     0.36,   // 확산광 강도
+  wrap:        0.24,   // 랩 라이팅 (그늘쪽 보정)
   specPow:     36.0,   // 스페큘러 지수 (높을수록 작고 선명)
   specStr:     0.20,   // 스페큘러 강도
   fresnelPow:  4.0,    // 프레넬 지수 (높을수록 테두리에만)
@@ -745,7 +745,7 @@ function Scene({ callbacks, params }: { callbacks: BunCallbacks; params: ShaderP
     <>
       <ambientLight intensity={0.5} />
       <directionalLight position={[3, 5, 3]} intensity={1.2} />
-      <directionalLight position={[-2, 2, -2]} intensity={0.3} color="#b0c4de" />
+      <directionalLight position={[-2, 2, -2]} intensity={0.3} color="#f5ede0" />
       <BunMesh callbacks={callbacks} params={params} />
       <OrbitControls
         enablePan={false}
