@@ -5,6 +5,10 @@
 html, body {
   height: 100%;
   overscroll-behavior: none;
+  /* 모바일 터치 선택 방지 */
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
 }
 
 @keyframes slide-up {

@@ -785,14 +785,17 @@ export function BunPractice() {
 
   const handleBurstComplete = useCallback(() => setIsBursting(false), [])
 
+  // 모바일에서 화면 꽉 차는 문제: 세로 좁을수록 카메라를 멀리
+  const cameraZ = typeof window !== 'undefined' && window.innerWidth < 640 ? 4.8 : 3.2
+
   return (
     <div style={{ width: '100vw', height: '100vh', background: 'transparent', position: 'relative' }}>
       <WindowBar />
 
       <Canvas
-        camera={{ position: [0, 0.05, 3.2], fov: 48 }}
+        camera={{ position: [0, 0.05, cameraZ], fov: 48 }}
         gl={{ alpha: true }}
-        style={{ background: 'transparent' }}
+        style={{ background: 'transparent', touchAction: 'none' }}
       >
         <Scene callbacks={callbacks} params={params} />
       </Canvas>
