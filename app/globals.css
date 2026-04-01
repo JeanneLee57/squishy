@@ -30,3 +30,33 @@ html, body {
 .animate-fade-in {
   animation: fade-in 0.4s ease-out forwards;
 }
+
+/* 찐빵 김 모락모락 */
+@keyframes steamRise {
+  0% {
+    transform: translateY(0) scale(0.3);
+    opacity: 0;
+  }
+  15% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translateY(-110px) scale(1.8) translateX(8px);
+    opacity: 0;
+  }
+}
+
+/* 터지기 파티클 */
+@keyframes burstFly {
+  0% {
+    transform: translate(0, 0) scale(1);
+    opacity: 1;
+  }
+  60% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translate(var(--tx), var(--ty)) scale(0.2);
+    opacity: 0;
+  }
+}
