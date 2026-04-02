@@ -1,7 +1,7 @@
 'use client'
 
 /**
- * BunPractice.tsx - 찐빵 데스크톱 토이
+ * Bun.tsx - 찐빵 데스크톱 토이
  *
  * ✅ 1단계: LatheGeometry 찐빵 형태
  * ✅ 2단계: 커스텀 셰이더 + 클릭 눌림
@@ -760,7 +760,7 @@ function Scene({ callbacks, params }: { callbacks: BunCallbacks; params: ShaderP
 // =============================================
 // 메인 컴포넌트
 // =============================================
-export function BunPractice() {
+export function Bun() {
   const [isSteaming, setIsSteaming] = useState(false)
   const [isBursting, setIsBursting] = useState(false)
   const [params, setParams] = useState<ShaderParams>({ ...DEFAULT_PARAMS })

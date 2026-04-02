@@ -200,8 +200,8 @@ export default function Home() {
 // 현재 활성: 찐빵 연습 컴포넌트
 // ============================================================
 
-import { BunPractice } from "@/components/BunPractice";
+import { Bun } from "@/components/Bun";
 
 export default function Home() {
-  return <BunPractice />;
+  return <Bun />;
 }
