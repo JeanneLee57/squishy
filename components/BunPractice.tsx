@@ -35,31 +35,31 @@ const STEAM_THRESHOLD = 1.5   // 김 나기 시작 온도
 // =============================================
 export const DEFAULT_PARAMS = {
   // 칼집 (Vertex)
-  basePinch:   0.20,   // 꼭대기 전체 수축량
+  basePinch: 0.20,   // 꼭대기 전체 수축량
   creasePinch: 0.48,   // 칼집 선 추가 수축량
-  creaseSink:  0.055,  // 칼집 선 아래로 꺼지는 깊이
-  creaseBot:   0.28,   // 칼집 영향 시작 높이 (smoothstep 하한)
-  creaseTop:   0.68,   // 칼집 영향 최대 높이 (smoothstep 상한)
+  creaseSink: 0.055,  // 칼집 선 아래로 꺼지는 깊이
+  creaseBot: 0.28,   // 칼집 영향 시작 높이 (smoothstep 하한)
+  creaseTop: 0.68,   // 칼집 영향 최대 높이 (smoothstep 상한)
   // 눌림 (Vertex)
-  dentDepth:   0.40,   // 눌림 변위 깊이 배율
+  dentDepth: 0.40,   // 눌림 변위 깊이 배율
   pressRadius: 0.35,   // 눌림 가우시안 반지름
   // 조명 (Fragment)
-  ambient:     0.56,   // 환경광
-  diffuse:     0.36,   // 확산광 강도
-  wrap:        0.24,   // 랩 라이팅 (그늘쪽 보정)
-  specPow:     36.0,   // 스페큘러 지수 (높을수록 작고 선명)
-  specStr:     0.20,   // 스페큘러 강도
-  fresnelPow:  4.0,    // 프레넬 지수 (높을수록 테두리에만)
-  fresnelStr:  0.05,   // 프레넬 강도
+  ambient: 0.56,   // 환경광
+  diffuse: 0.36,   // 확산광 강도
+  wrap: 0.24,   // 랩 라이팅 (그늘쪽 보정)
+  specPow: 36.0,   // 스페큘러 지수 (높을수록 작고 선명)
+  specStr: 0.20,   // 스페큘러 강도
+  fresnelPow: 4.0,    // 프레넬 지수 (높을수록 테두리에만)
+  fresnelStr: 0.05,   // 프레넬 강도
   // 색상 (Fragment)
   bottomR: 0.859, bottomG: 0.710, bottomB: 0.284,  // 바닥 골드
-  midR:    0.925, midG:    0.827, midB:    0.549,   // 중간 크림
-  topR:    0.882, topG:    0.592, topB:    0.235,   // 꼭대기 앰버
+  midR: 0.925, midG: 0.827, midB: 0.549,   // 중간 크림
+  topR: 0.882, topG: 0.592, topB: 0.235,   // 꼭대기 앰버
   // 칼집·눌림 어둠 (Fragment)
-  creaseDark:  0.80,   // 칼집 그림자 믹스 강도
-  dentDark:    0.65,   // 눌림 warm AO 강도
+  creaseDark: 0.80,   // 칼집 그림자 믹스 강도
+  dentDark: 0.65,   // 눌림 warm AO 강도
   dentEdgeStr: 0.40,   // 눌림 가장자리 반짝임 강도
-  dentSSS:     0.22,   // 눌림 가장자리 투과광 강도 (SSS)
+  dentSSS: 0.22,   // 눌림 가장자리 투과광 강도 (SSS)
 }
 export type ShaderParams = typeof DEFAULT_PARAMS
 
@@ -269,80 +269,80 @@ function BunMesh({ callbacks, params }: { callbacks: BunCallbacks; params: Shade
   })
 
   const uniforms = useMemo(() => ({
-    uPressPoint:    { value: new THREE.Vector3(0, -10, 0) },
+    uPressPoint: { value: new THREE.Vector3(0, -10, 0) },
     uPressStrength: { value: 0.0 },
-    uPressRadius:   { value: DEFAULT_PARAMS.pressRadius },
-    uInflation:     { value: 0.0 },
-    uShake:         { value: 0.0 },
-    uScale:         { value: 1.0 },
-    uTime:          { value: 0.0 },
-    uLightDir:      { value: new THREE.Vector3(2, 5, 4).normalize() },
-    uRedTint:       { value: 0.0 },
+    uPressRadius: { value: DEFAULT_PARAMS.pressRadius },
+    uInflation: { value: 0.0 },
+    uShake: { value: 0.0 },
+    uScale: { value: 1.0 },
+    uTime: { value: 0.0 },
+    uLightDir: { value: new THREE.Vector3(2, 5, 4).normalize() },
+    uRedTint: { value: 0.0 },
     // 칼집
-    uBasePinch:     { value: DEFAULT_PARAMS.basePinch },
-    uCreasePinch:   { value: DEFAULT_PARAMS.creasePinch },
-    uCreaseSink:    { value: DEFAULT_PARAMS.creaseSink },
-    uCreaseBot:     { value: DEFAULT_PARAMS.creaseBot },
-    uCreaseTop:     { value: DEFAULT_PARAMS.creaseTop },
+    uBasePinch: { value: DEFAULT_PARAMS.basePinch },
+    uCreasePinch: { value: DEFAULT_PARAMS.creasePinch },
+    uCreaseSink: { value: DEFAULT_PARAMS.creaseSink },
+    uCreaseBot: { value: DEFAULT_PARAMS.creaseBot },
+    uCreaseTop: { value: DEFAULT_PARAMS.creaseTop },
     // 눌림
-    uDentDepth:     { value: DEFAULT_PARAMS.dentDepth },
+    uDentDepth: { value: DEFAULT_PARAMS.dentDepth },
     // 조명
-    uAmbient:       { value: DEFAULT_PARAMS.ambient },
-    uDiffuse:       { value: DEFAULT_PARAMS.diffuse },
-    uWrap:          { value: DEFAULT_PARAMS.wrap },
-    uSpecPow:       { value: DEFAULT_PARAMS.specPow },
-    uSpecStr:       { value: DEFAULT_PARAMS.specStr },
-    uFresnelPow:    { value: DEFAULT_PARAMS.fresnelPow },
-    uFresnelStr:    { value: DEFAULT_PARAMS.fresnelStr },
-    uCreaseDark:    { value: DEFAULT_PARAMS.creaseDark },
-    uDentDark:      { value: DEFAULT_PARAMS.dentDark },
-    uDentEdgeStr:   { value: DEFAULT_PARAMS.dentEdgeStr },
-    uDentSSS:       { value: DEFAULT_PARAMS.dentSSS },
+    uAmbient: { value: DEFAULT_PARAMS.ambient },
+    uDiffuse: { value: DEFAULT_PARAMS.diffuse },
+    uWrap: { value: DEFAULT_PARAMS.wrap },
+    uSpecPow: { value: DEFAULT_PARAMS.specPow },
+    uSpecStr: { value: DEFAULT_PARAMS.specStr },
+    uFresnelPow: { value: DEFAULT_PARAMS.fresnelPow },
+    uFresnelStr: { value: DEFAULT_PARAMS.fresnelStr },
+    uCreaseDark: { value: DEFAULT_PARAMS.creaseDark },
+    uDentDark: { value: DEFAULT_PARAMS.dentDark },
+    uDentEdgeStr: { value: DEFAULT_PARAMS.dentEdgeStr },
+    uDentSSS: { value: DEFAULT_PARAMS.dentSSS },
     // 색상
-    uBottomColor:   { value: new THREE.Color(DEFAULT_PARAMS.bottomR, DEFAULT_PARAMS.bottomG, DEFAULT_PARAMS.bottomB) },
-    uMidColor:      { value: new THREE.Color(DEFAULT_PARAMS.midR,    DEFAULT_PARAMS.midG,    DEFAULT_PARAMS.midB) },
-    uTopColor:      { value: new THREE.Color(DEFAULT_PARAMS.topR,    DEFAULT_PARAMS.topG,    DEFAULT_PARAMS.topB) },
+    uBottomColor: { value: new THREE.Color(DEFAULT_PARAMS.bottomR, DEFAULT_PARAMS.bottomG, DEFAULT_PARAMS.bottomB) },
+    uMidColor: { value: new THREE.Color(DEFAULT_PARAMS.midR, DEFAULT_PARAMS.midG, DEFAULT_PARAMS.midB) },
+    uTopColor: { value: new THREE.Color(DEFAULT_PARAMS.topR, DEFAULT_PARAMS.topG, DEFAULT_PARAMS.topB) },
   }), [])
 
   // params 변경 → 유니폼 동기화
   useEffect(() => {
     if (!matRef.current) return
     const u = matRef.current.uniforms
-    u.uPressRadius.value  = params.pressRadius
-    u.uBasePinch.value    = params.basePinch
-    u.uCreasePinch.value  = params.creasePinch
-    u.uCreaseSink.value   = params.creaseSink
-    u.uCreaseBot.value    = params.creaseBot
-    u.uCreaseTop.value    = params.creaseTop
-    u.uDentDepth.value    = params.dentDepth
-    u.uAmbient.value      = params.ambient
-    u.uDiffuse.value      = params.diffuse
-    u.uWrap.value         = params.wrap
-    u.uSpecPow.value      = params.specPow
-    u.uSpecStr.value      = params.specStr
-    u.uFresnelPow.value   = params.fresnelPow
-    u.uFresnelStr.value   = params.fresnelStr
-    u.uCreaseDark.value   = params.creaseDark
-    u.uDentDark.value     = params.dentDark
-    u.uDentEdgeStr.value  = params.dentEdgeStr
-    u.uDentSSS.value      = params.dentSSS
+    u.uPressRadius.value = params.pressRadius
+    u.uBasePinch.value = params.basePinch
+    u.uCreasePinch.value = params.creasePinch
+    u.uCreaseSink.value = params.creaseSink
+    u.uCreaseBot.value = params.creaseBot
+    u.uCreaseTop.value = params.creaseTop
+    u.uDentDepth.value = params.dentDepth
+    u.uAmbient.value = params.ambient
+    u.uDiffuse.value = params.diffuse
+    u.uWrap.value = params.wrap
+    u.uSpecPow.value = params.specPow
+    u.uSpecStr.value = params.specStr
+    u.uFresnelPow.value = params.fresnelPow
+    u.uFresnelStr.value = params.fresnelStr
+    u.uCreaseDark.value = params.creaseDark
+    u.uDentDark.value = params.dentDark
+    u.uDentEdgeStr.value = params.dentEdgeStr
+    u.uDentSSS.value = params.dentSSS
     u.uBottomColor.value.setRGB(params.bottomR, params.bottomG, params.bottomB)
-    u.uMidColor.value.setRGB(params.midR,    params.midG,    params.midB)
-    u.uTopColor.value.setRGB(params.topR,    params.topG,    params.topB)
+    u.uMidColor.value.setRGB(params.midR, params.midG, params.midB)
+    u.uTopColor.value.setRGB(params.topR, params.topG, params.topB)
   }, [params])
 
   const geometry = useMemo(() => {
     const spline = new THREE.SplineCurve([
       new THREE.Vector2(0.001, -0.26),
-      new THREE.Vector2(0.40,  -0.26),
-      new THREE.Vector2(0.68,  -0.24),
-      new THREE.Vector2(0.84,  -0.10),
-      new THREE.Vector2(0.88,   0.06),
-      new THREE.Vector2(0.82,   0.24),
-      new THREE.Vector2(0.65,   0.42),
-      new THREE.Vector2(0.44,   0.55),
-      new THREE.Vector2(0.20,   0.63),
-      new THREE.Vector2(0.001,  0.66),
+      new THREE.Vector2(0.40, -0.26),
+      new THREE.Vector2(0.68, -0.24),
+      new THREE.Vector2(0.84, -0.10),
+      new THREE.Vector2(0.88, 0.06),
+      new THREE.Vector2(0.82, 0.24),
+      new THREE.Vector2(0.65, 0.42),
+      new THREE.Vector2(0.44, 0.55),
+      new THREE.Vector2(0.20, 0.63),
+      new THREE.Vector2(0.001, 0.66),
     ])
     const profilePoints = spline.getPoints(80)
     const geo = new THREE.LatheGeometry(profilePoints, 64)
@@ -555,36 +555,36 @@ function BurstEffect({ active, onComplete }: { active: boolean, onComplete: () =
 // 셰이더 컨트롤 패널
 // =============================================
 type SliderDef = { key: keyof ShaderParams; label: string; min: number; max: number; step: number }
-type GroupDef  = { title: string; sliders: SliderDef[] }
+type GroupDef = { title: string; sliders: SliderDef[] }
 
 const SLIDER_GROUPS: GroupDef[] = [
   {
     title: '칼집',
     sliders: [
-      { key: 'basePinch',   label: 'basePinch',   min: 0,    max: 0.5,  step: 0.005 },
-      { key: 'creasePinch', label: 'creasePinch', min: 0,    max: 0.8,  step: 0.005 },
-      { key: 'creaseSink',  label: 'creaseSink',  min: 0,    max: 0.15, step: 0.002 },
-      { key: 'creaseBot',   label: 'creaseBot',   min: 0,    max: 0.6,  step: 0.01  },
-      { key: 'creaseTop',   label: 'creaseTop',   min: 0.3,  max: 1.0,  step: 0.01  },
+      { key: 'basePinch', label: 'basePinch', min: 0, max: 0.5, step: 0.005 },
+      { key: 'creasePinch', label: 'creasePinch', min: 0, max: 0.8, step: 0.005 },
+      { key: 'creaseSink', label: 'creaseSink', min: 0, max: 0.15, step: 0.002 },
+      { key: 'creaseBot', label: 'creaseBot', min: 0, max: 0.6, step: 0.01 },
+      { key: 'creaseTop', label: 'creaseTop', min: 0.3, max: 1.0, step: 0.01 },
     ],
   },
   {
     title: '눌림',
     sliders: [
-      { key: 'dentDepth',   label: 'dentDepth',   min: 0,    max: 1.0,  step: 0.01  },
-      { key: 'pressRadius', label: 'pressRadius', min: 0.05, max: 0.8,  step: 0.01  },
+      { key: 'dentDepth', label: 'dentDepth', min: 0, max: 1.0, step: 0.01 },
+      { key: 'pressRadius', label: 'pressRadius', min: 0.05, max: 0.8, step: 0.01 },
     ],
   },
   {
     title: '조명',
     sliders: [
-      { key: 'ambient',    label: 'ambient',    min: 0,   max: 1,   step: 0.01 },
-      { key: 'diffuse',    label: 'diffuse',    min: 0,   max: 1,   step: 0.01 },
-      { key: 'wrap',       label: 'wrap',       min: 0,   max: 0.5, step: 0.01 },
-      { key: 'specPow',    label: 'specPow',    min: 1,   max: 128, step: 1    },
-      { key: 'specStr',    label: 'specStr',    min: 0,   max: 1,   step: 0.01 },
-      { key: 'fresnelPow', label: 'fresnelPow', min: 1,   max: 8,   step: 0.1  },
-      { key: 'fresnelStr', label: 'fresnelStr', min: 0,   max: 0.5, step: 0.01 },
+      { key: 'ambient', label: 'ambient', min: 0, max: 1, step: 0.01 },
+      { key: 'diffuse', label: 'diffuse', min: 0, max: 1, step: 0.01 },
+      { key: 'wrap', label: 'wrap', min: 0, max: 0.5, step: 0.01 },
+      { key: 'specPow', label: 'specPow', min: 1, max: 128, step: 1 },
+      { key: 'specStr', label: 'specStr', min: 0, max: 1, step: 0.01 },
+      { key: 'fresnelPow', label: 'fresnelPow', min: 1, max: 8, step: 0.1 },
+      { key: 'fresnelStr', label: 'fresnelStr', min: 0, max: 0.5, step: 0.01 },
     ],
   },
   {
@@ -614,10 +614,10 @@ const SLIDER_GROUPS: GroupDef[] = [
   {
     title: '칼집·눌림',
     sliders: [
-      { key: 'creaseDark',  label: 'creaseDark',  min: 0, max: 1,   step: 0.01 },
-      { key: 'dentDark',    label: 'dentDark',    min: 0, max: 1,   step: 0.01 },
+      { key: 'creaseDark', label: 'creaseDark', min: 0, max: 1, step: 0.01 },
+      { key: 'dentDark', label: 'dentDark', min: 0, max: 1, step: 0.01 },
       { key: 'dentEdgeStr', label: 'dentEdgeStr', min: 0, max: 1.5, step: 0.01 },
-      { key: 'dentSSS',     label: 'dentSSS',     min: 0, max: 0.8, step: 0.01 },
+      { key: 'dentSSS', label: 'dentSSS', min: 0, max: 0.8, step: 0.01 },
     ],
   },
 ]
@@ -793,7 +793,7 @@ export function BunPractice() {
       <WindowBar />
 
       <Canvas
-        camera={{ position: [0, 0.05, cameraZ], fov: 48 }}
+        camera={{ position: [0, 1.5, cameraZ], fov: 48 }}
         gl={{ alpha: true }}
         style={{ background: 'transparent', touchAction: 'none' }}
       >
